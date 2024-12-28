@@ -11,18 +11,33 @@ const PORT = process.env.PORT || 3000;
 // Load environment variables
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN!;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
+const WEBHOOK_URL =
+  process.env.WEBHOOK_URL || "https://your-app-name.up.railway.app";
 
 // Initialize Telegram bot
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+const bot = new TelegramBot(TELEGRAM_TOKEN);
 
 // Initialize OpenAI API
 const openai = new OpenAI({
   apiKey: OPENAI_API_KEY,
 });
 
+// Set webhook
+bot.setWebHook(`${WEBHOOK_URL}/bot${TELEGRAM_TOKEN}`);
+
+// Middleware to parse JSON
+app.use(express.json());
+
+// Webhook endpoint for Telegram
+app.post(`/bot${TELEGRAM_TOKEN}`, (req, res) => {
+  bot.processUpdate(req.body); // Pass updates to Telegram bot
+  res.sendStatus(200); // Respond with 200 OK
+});
+
 // Helper function to generate Bible counseling response
 async function getBiblicalCounsel(prompt: string): Promise<string> {
-  const systemMessage = `You are a compassionate Christian counselor who holds firmly to the truths of the gospel as revealed in Scripture. You embrace the principles of the Reformed faith, particularly the doctrines of grace (TULIP), and are deeply committed to helping people know the truth of God’s Word while firmly opposing false teaching.
+  const systemMessage = `
+You are a compassionate Christian counselor who holds firmly to the truths of the gospel as revealed in Scripture. You embrace the principles of the Reformed faith, particularly the doctrines of grace (TULIP), and are deeply committed to helping people know the truth of God’s Word while firmly opposing false teaching.
 
 Your tone reflects the compassion of Jesus Christ, full of grace and truth. When addressing someone’s concerns, always begin with a compassionate and understanding statement that relates to their situation. Then provide a related Bible verse and summarize how God’s Word applies to them, offering hope, encouragement, or guidance.
 
@@ -31,6 +46,7 @@ Key Adjustments:
 Diversity of Bible verses: Ensure that when responding to repeated questions (e.g., "Can I lose my salvation?"), you provide multiple relevant Bible passages that support the same theological truth. Avoid using the same verse repeatedly unless it is particularly central to the topic.
 Consistency with Reformed theology (TULIP): Always stay within the bounds of Reformed theology. For example, when discussing salvation, avoid any implication of free will or universal atonement. Ensure that the verses reflect the doctrines of election, perseverance of the saints, and God's sovereignty.
 Concise and clear guidance: Provide practical applications of Scripture that encourage and guide the person in their faith while offering hope in God’s promises.
+If you want to use markdown for response like bold or italic, use MarkdownV1 not MarkdownV2.
 
 Example:
 Question: "Can I lose my salvation?"
@@ -40,14 +56,18 @@ It’s natural to wonder about the security of your salvation, especially during
 
 Consider this verse:
 
-- "For I am sure that neither death nor life, nor angels nor rulers, nor things present nor things to come, nor powers, nor height nor depth, nor anything else in all creation, will be able to separate us from the love of God in Christ Jesus our Lord." (Romans 8:38-39)
+*"For I am sure that neither death nor life, nor angels nor rulers, nor things present nor things to come, nor powers, nor height nor depth, nor anything else in all creation, will be able to separate us from the love of God in Christ Jesus our Lord."* 
+*Romans 8:38-39*
 This powerful verse assures us that nothing—absolutely nothing—can separate us from the love of God. The security of your salvation is rooted in His sovereign choice, and nothing can undo what He has done. Rest in the assurance that your salvation is eternally secure in Him.`;
+
   const response = await openai.chat.completions.create({
-    model: "gpt-3.5-turbo",
+    model: "gpt-4o-mini",
     messages: [
       { role: "system", content: systemMessage },
       { role: "user", content: prompt },
     ],
+    temperature: 0.2,
+    max_tokens: 1500,
   });
 
   return (
@@ -66,7 +86,8 @@ bot.on("message", async (msg) => {
   if (text.toLowerCase() === "/start") {
     bot.sendMessage(
       chatId,
-      "Welcome! I am a Bible-based counseling bot. Ask me a question or share your concern."
+      "Welcome I am a Bible-based counseling bot. Ask me a question or share your concern.",
+      { parse_mode: "Markdown" }
     );
     return;
   }
@@ -74,9 +95,8 @@ bot.on("message", async (msg) => {
   // Generate a response from ChatGPT
   try {
     const response = await getBiblicalCounsel(text);
-    bot.sendMessage(chatId, response);
+    bot.sendMessage(chatId, response, { parse_mode: "Markdown" });
   } catch (error) {
-    console.error(error);
     bot.sendMessage(
       chatId,
       "Sorry, I encountered an error. Please try again later."
