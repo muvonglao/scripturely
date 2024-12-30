@@ -20,9 +20,12 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.47.10",
+    "body-parser": "^1.20.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "node-telegram-bot-api": "^0.66.0",
-    "openai": "^4.76.3"
+    "openai": "^4.76.3",
+    "stripe": "^17.5.0"
   }
 }
