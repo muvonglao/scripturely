@@ -30,20 +30,16 @@ export const stripeWebhookHandler = async (
   switch (event.type) {
     case "checkout.session.completed":
       const session = event.data.object as Stripe.Checkout.Session;
-      // Save subscription details to Supabase
       await handleCheckoutSessionCompleted(session);
       break;
     case "invoice.payment_succeeded":
       const invoice = event.data.object as Stripe.Invoice;
-      // Update subscription status to active
       await handleInvoicePaymentSucceeded(invoice);
       break;
     case "customer.subscription.deleted":
       const subscription = event.data.object as Stripe.Subscription;
-      // Update subscription status to inactive
       await handleSubscriptionDeleted(subscription);
       break;
-    // Add more event types as needed
     default:
       console.log(`Unhandled event type ${event.type}`);
   }
@@ -55,20 +51,18 @@ const handleCheckoutSessionCompleted = async (
   session: Stripe.Checkout.Session
 ) => {
   const customer = await stripe.customers.retrieve(session.customer as string);
-  if ("deleted" in customer && customer.deleted) {
-    console.error("Customer has been deleted");
-    return;
-  }
-  const userId = (customer as Stripe.Customer).metadata.user_id;
+  const userId = session.metadata?.user_id;
 
-  const { data, error } = await supabase.from("subscriptions").insert({
-    user_id: userId,
-    stripe_subscription_id: session.subscription,
-    plan: session.subscription,
-    status: "active",
-    trial_start: new Date(),
-    expires_at: new Date(new Date().setDate(new Date().getDate() + 7)), // 7-day trial
-  });
+  console.log("check session", session);
+
+  const { data, error } = await supabase
+    .from("users")
+    .update({
+      email: session.customer_details?.email,
+      stripe_subscription_id: session.subscription,
+      stripe_customer_id: session.customer,
+    })
+    .eq("id", userId);
 
   if (error) {
     console.error("Error saving subscription to Supabase:", error);
@@ -76,24 +70,18 @@ const handleCheckoutSessionCompleted = async (
 };
 
 const handleInvoicePaymentSucceeded = async (invoice: Stripe.Invoice) => {
-  const subscriptionId = invoice.subscription as string;
-
-  const { data, error } = await supabase
-    .from("subscriptions")
-    .update({ status: "active" })
-    .eq("stripe_subscription_id", subscriptionId);
-
-  if (error) {
-    console.error("Error updating subscription status in Supabase:", error);
-  }
+  // No need to update the database, just log the event
+  console.log(
+    `Invoice payment succeeded for subscription: ${invoice.subscription}`
+  );
 };
 
 const handleSubscriptionDeleted = async (subscription: Stripe.Subscription) => {
   const subscriptionId = subscription.id;
 
   const { data, error } = await supabase
-    .from("subscriptions")
-    .update({ status: "inactive" })
+    .from("users")
+    .update({ stripe_subscription_id: null })
     .eq("stripe_subscription_id", subscriptionId);
 
   if (error) {
