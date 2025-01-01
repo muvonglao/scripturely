@@ -22,6 +22,8 @@ const {
   SUPABASE_URL,
   SUPABASE_KEY,
   STRIPE_CUSTOMER_PORTAL_URL,
+  STRIPE_MONTHLY_PRICE_ID,
+  STRIPE_YEARLY_PRICE_ID,
 } = process.env;
 
 // Initialize services
@@ -166,6 +168,8 @@ Remember: All counsel must ultimately point to Christ as the source of hope, hea
   return responseContent;
 }
 
+const userCache = new Map();
+
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
@@ -251,11 +255,9 @@ bot.on("message", async (msg) => {
     };
 
     const monthlySession = await createCheckoutSession(
-      "price_1QbdT2CDSOPtkbyfxUTBULlz"
+      STRIPE_MONTHLY_PRICE_ID!
     );
-    const yearlySession = await createCheckoutSession(
-      "price_1QbdaPCDSOPtkbyfFQ2rsizu"
-    );
+    const yearlySession = await createCheckoutSession(STRIPE_YEARLY_PRICE_ID!);
     bot.sendMessage(
       chatId,
       `Start a 7-day free trial now to unlock unlimited access. Cancel anytime during the trial.
