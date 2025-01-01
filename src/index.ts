@@ -97,22 +97,9 @@ This powerful verse assures us that nothing—absolutely nothing—can separate 
   );
 }
 
-// Telegram message handler
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
-
-  if (text.toLowerCase() === "/start") {
-    bot.sendMessage(
-      chatId,
-      "Welcome! I am a Bible-based counseling bot. Ask me a question or share your concern.",
-      { parse_mode: "Markdown" }
-    );
-    return;
-  }
-
-  const placeholderMessage = await bot.sendMessage(chatId, "Typing...");
-
   let { data: userPlatform, error: userPlatformError } = await supabase
     .from("user_platforms")
     .select("user_id")
@@ -161,30 +148,26 @@ bot.on("message", async (msg) => {
 
   const { data: user, error: userError } = await supabase
     .from("users")
-    .select("message_count")
+    .select("stripe_subscription_id, message_count")
     .eq("id", userPlatform.user_id)
     .single();
 
   if (userError) {
-    console.error(
-      "Error fetching user message count from Supabase:",
-      userError
+    console.error("Error fetching user from Supabase:", userError);
+    return;
+  }
+
+  //menu
+  if (text.toLowerCase() === "/start") {
+    bot.sendMessage(
+      chatId,
+      "Welcome! I am a Bible-based counseling bot. Ask me a question or share your concern.",
+      { parse_mode: "Markdown" }
     );
     return;
   }
 
-  if (user.message_count >= 10) {
-    const user = await supabase
-      .from("users")
-      .select("email, stripe_customer_id, stripe_subscription_id")
-      .eq("id", userPlatform.user_id)
-      .single();
-
-    if (user.error || !user.data) {
-      console.error("Error fetching user email from Supabase:", user.error);
-      return;
-    }
-
+  if (text.toLowerCase() === "/subscription") {
     const createCheckoutSession = async (priceId: string) => {
       return await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
@@ -201,7 +184,55 @@ bot.on("message", async (msg) => {
       });
     };
 
-    if (!user.data.stripe_customer_id) {
+    const monthlySession = await createCheckoutSession(
+      "price_1QbdT2CDSOPtkbyfxUTBULlz"
+    );
+    const yearlySession = await createCheckoutSession(
+      "price_1QbdaPCDSOPtkbyfFQ2rsizu"
+    );
+    bot.sendMessage(
+      chatId,
+      "You have reached the free message limit. Please subscribe to continue.",
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: "Monthly",
+                url: monthlySession.url!,
+              },
+              {
+                text: "Yearly",
+                url: yearlySession.url!,
+              },
+            ],
+          ],
+        },
+      }
+    );
+    return;
+  }
+
+  const placeholderMessage = await bot.sendMessage(chatId, "Typing...");
+
+  if (user.message_count >= 10) {
+    const createCheckoutSession = async (priceId: string) => {
+      return await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: 1 }],
+        mode: "subscription",
+        subscription_data: {
+          trial_period_days: 7,
+        },
+        success_url: `https://t.me/Scripturely_bot`,
+        cancel_url: `https://muvonglao.com`,
+        metadata: {
+          user_id: userPlatform.user_id,
+        },
+      });
+    };
+
+    if (!user.stripe_subscription_id) {
       const monthlySession = await createCheckoutSession(
         "price_1QbdT2CDSOPtkbyfxUTBULlz"
       );
@@ -233,7 +264,7 @@ bot.on("message", async (msg) => {
     }
 
     const subscription = await stripe.subscriptions.retrieve(
-      user.data.stripe_subscription_id
+      user.stripe_subscription_id
     );
     if (!["active", "trialing"].includes(subscription.status)) {
       const monthlySession = await createCheckoutSession(
