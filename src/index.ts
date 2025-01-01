@@ -7,6 +7,7 @@ import express from "express";
 import { stripeWebhookHandler } from "./stripe-webhooks";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
