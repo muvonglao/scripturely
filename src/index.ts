@@ -82,7 +82,7 @@ Consider this verse:
 This powerful verse assures us that nothing—absolutely nothing—can separate us from the love of God. The security of your salvation is rooted in His sovereign choice, and nothing can undo what He has done. Rest in the assurance that your salvation is eternally secure in Him.`;
 
   const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "gpt-3.5-turbo",
     messages: [
       { role: "system", content: systemMessage },
       { role: "user", content: prompt },
@@ -101,7 +101,7 @@ This powerful verse assures us that nothing—absolutely nothing—can separate 
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
-  console.log("check msg", msg);
+
   if (text.toLowerCase() === "/start") {
     bot.sendMessage(
       chatId,
@@ -111,7 +111,7 @@ bot.on("message", async (msg) => {
     return;
   }
 
-  console.log(`Received message from chatId: ${chatId}, text: ${text}`);
+  const placeholderMessage = await bot.sendMessage(chatId, "Typing...");
 
   let { data: userPlatform, error: userPlatformError } = await supabase
     .from("user_platforms")
@@ -190,6 +190,9 @@ bot.on("message", async (msg) => {
         payment_method_types: ["card"],
         line_items: [{ price: priceId, quantity: 1 }],
         mode: "subscription",
+        subscription_data: {
+          trial_period_days: 7,
+        },
         success_url: `https://t.me/Scripturely_bot`,
         cancel_url: `https://muvonglao.com`,
         metadata: {
@@ -205,6 +208,7 @@ bot.on("message", async (msg) => {
       const yearlySession = await createCheckoutSession(
         "price_1QbdaPCDSOPtkbyfFQ2rsizu"
       );
+      await bot.deleteMessage(chatId, placeholderMessage.message_id);
       bot.sendMessage(
         chatId,
         "You have reached the free message limit. Please subscribe to continue.",
@@ -231,14 +235,14 @@ bot.on("message", async (msg) => {
     const subscription = await stripe.subscriptions.retrieve(
       user.data.stripe_subscription_id
     );
-
-    if (subscription.status !== "active") {
+    if (!["active", "trialing"].includes(subscription.status)) {
       const monthlySession = await createCheckoutSession(
         "price_1QbdT2CDSOPtkbyfxUTBULlz"
       );
       const yearlySession = await createCheckoutSession(
         "price_1QbdaPCDSOPtkbyfFQ2rsizu"
       );
+      await bot.deleteMessage(chatId, placeholderMessage.message_id);
       bot.sendMessage(
         chatId,
         "You have reached the free message limit. Please subscribe to continue.",
@@ -262,8 +266,6 @@ bot.on("message", async (msg) => {
       return;
     }
   }
-
-  const placeholderMessage = await bot.sendMessage(chatId, "Typing...");
 
   try {
     const response = await getBiblicalCounsel(text);
@@ -289,8 +291,6 @@ bot.on("message", async (msg) => {
 
   console.log("Updated user message count in Supabase:", updatedUser);
 });
-
-// Success route
 
 app.listen(PORT, () => {
   console.log(`Running on Port ${PORT}`);
