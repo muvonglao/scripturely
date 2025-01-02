@@ -168,8 +168,6 @@ Remember: All counsel must ultimately point to Christ as the source of hope, hea
   return responseContent;
 }
 
-const userCache = new Map();
-
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text || "";
@@ -345,10 +343,10 @@ Click a plan below to get started. 👇`,
 
     if (!user.stripe_subscription_id) {
       const monthlySession = await createCheckoutSession(
-        "price_1QbdT2CDSOPtkbyfxUTBULlz"
+        STRIPE_MONTHLY_PRICE_ID!
       );
       const yearlySession = await createCheckoutSession(
-        "price_1QbdaPCDSOPtkbyfFQ2rsizu"
+        STRIPE_YEARLY_PRICE_ID!
       );
       await bot.deleteMessage(chatId, placeholderMessage.message_id);
       bot.sendMessage(
